@@ -351,6 +351,83 @@ let targetGridSpeed = 1.0;
 let currentGridSpeed = 1.0;
 let isMouseDownOnCanvas = false;
 
+// Lofi room and nebula state
+let isDayMode = false;
+let cloudDrift = 0;
+let shootingStars = [];
+let planets = [];
+let nebulas = [];
+let steamParticles = [];
+let cityWindows = [];
+
+function initSceneData() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  // 1. Twinkling Stars Pool
+  chillhopStars = [];
+  const numStars = activeStation === 'ambient' ? 120 : 60;
+  for (let i = 0; i < numStars; i++) {
+    chillhopStars.push({
+      x: Math.random() * w,
+      y: Math.random() * h * (activeStation === 'retrowave' ? 0.65 : 1.0),
+      size: Math.random() * 1.5 + 0.4,
+      opacity: Math.random(),
+      speed: Math.random() * 0.015 + 0.005
+    });
+  }
+
+  // 2. Rain Drops Pool
+  rainDrops = [];
+  const numDrops = activeStation === 'chillhop' ? 40 : 120;
+  for (let i = 0; i < numDrops; i++) {
+    rainDrops.push({
+      x: Math.random() * w,
+      y: Math.random() * h - h,
+      length: Math.random() * 15 + 10,
+      speed: Math.random() * 8 + 6,
+      opacity: Math.random() * 0.35 + 0.15,
+      angle: activeStation === 'chillhop' ? 0 : 0.12
+    });
+  }
+
+  // 3. Nebula gradients positions
+  nebulas = [
+    { x: w * 0.3, y: h * 0.35, targetR: w * 0.28, r: w * 0.1, color: 'rgba(139, 92, 246, ALPHA)', scale: 0.08 },
+    { x: w * 0.72, y: h * 0.28, targetR: w * 0.32, r: w * 0.15, color: 'rgba(6, 182, 212, ALPHA)', scale: 0.07 },
+    { x: w * 0.5, y: h * 0.68, targetR: w * 0.25, r: w * 0.12, color: 'rgba(236, 72, 153, ALPHA)', scale: 0.06 }
+  ];
+
+  // 4. Drifting planets
+  planets = [
+    {
+      x: w * 0.15,
+      y: h * 0.25,
+      r: 32,
+      color: '#ef4444',
+      speedX: 0.02,
+      speedY: 0.005,
+      hasRing: false
+    },
+    {
+      x: w * 0.8,
+      y: h * 0.45,
+      r: 45,
+      color: '#fbbf24',
+      speedX: 0.01,
+      speedY: 0.002,
+      hasRing: true,
+      ringColor: 'rgba(251, 191, 36, 0.4)'
+    }
+  ];
+
+  // 5. City windows state
+  cityWindows = [];
+  for (let i = 0; i < 60; i++) {
+    cityWindows.push(Math.random() > 0.4);
+  }
+}
+
 function initCanvasElements() {
   artCanvas = document.getElementById('art-canvas');
   artCtx = artCanvas.getContext('2d');
@@ -364,16 +441,8 @@ function initCanvasElements() {
   resizeCanvases();
   window.addEventListener('resize', resizeCanvases);
   
-  // Create rain particle pool
-  for (let i = 0; i < 75; i++) {
-    rainDrops.push({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight - window.innerHeight,
-      length: Math.random() * 15 + 10,
-      speed: Math.random() * 6 + 4,
-      opacity: Math.random() * 0.4 + 0.1
-    });
-  }
+  // Initialize graphics arrays
+  initSceneData();
   
   requestAnimationFrame(animationLoop);
 }
@@ -454,37 +523,402 @@ function animationLoop() {
 
 // ── ART DRAWING FUNCTIONS ──
 
-// Chillhop Cafe Background: Starry Sky Twinkling
+// Cozy Lofi Room scene: walls, floor, desk, monitor, coffee mug with steam, books, desk lamp and city view windows
 function drawChillhopArt(ctx, width, height) {
-  if (chillhopStars.length === 0) {
-    for (let i = 0; i < 40; i++) {
-      chillhopStars.push({
-        x: Math.random() * width,
-        y: Math.random() * height * 0.55,
-        size: Math.random() * 1.5 + 0.5,
-        opacity: Math.random(),
-        speed: Math.random() * 0.015 + 0.005
+  // 1. Sky Outside Window (Day vs Night)
+  const daySky = ctx.createLinearGradient(0, 0, 0, height);
+  daySky.addColorStop(0, '#93c5fd'); 
+  daySky.addColorStop(1, '#fed7aa'); 
+
+  const nightSky = ctx.createLinearGradient(0, 0, 0, height);
+  nightSky.addColorStop(0, '#060613'); 
+  nightSky.addColorStop(1, '#1e1b4b'); 
+
+  ctx.fillStyle = isDayMode ? daySky : nightSky;
+  ctx.fillRect(0, 0, width, height);
+
+  // Window coordinates relative to size
+  const wWidth = width * 0.32;
+  const wHeight = height * 0.44;
+  const wY = height * 0.12;
+  const leftWindowX = width * 0.12;
+  const rightWindowX = width * 0.56;
+
+  // Draw stars and moon (Night) or clouds (Day) outside window
+  if (!isDayMode) {
+    // Moon
+    ctx.fillStyle = 'rgba(254, 240, 138, 0.8)';
+    ctx.beginPath();
+    ctx.arc(leftWindowX + wWidth * 0.7, wY + wHeight * 0.3, 24, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Twinkling stars in window space
+    chillhopStars.forEach(s => {
+      s.opacity += s.speed;
+      if (s.opacity > 1 || s.opacity < 0.1) s.speed *= -1;
+      ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`;
+      ctx.fillRect(s.x % wWidth + leftWindowX, s.y % wHeight + wY, 2, 2);
+      ctx.fillRect(s.x % wWidth + rightWindowX, s.y % wHeight + wY, 2, 2);
+    });
+  } else {
+    // Drifting Clouds
+    cloudDrift += 0.12;
+    if (cloudDrift > width) cloudDrift = -200;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    
+    const drawCloud = (x, y, r) => {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.arc(x + r * 0.8, y - r * 0.3, r * 1.2, 0, Math.PI * 2);
+      ctx.arc(x + r * 1.6, y, r * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    
+    drawCloud(leftWindowX + cloudDrift * 0.6 % wWidth, wY + wHeight * 0.25, 22);
+    drawCloud(rightWindowX + (cloudDrift * 0.4 + 100) % wWidth, wY + wHeight * 0.3, 16);
+  }
+
+  // Draw City Skyline (silhouette)
+  const bColor = isDayMode ? '#1e293b' : '#09070f';
+  ctx.fillStyle = bColor;
+
+  const drawSkyline = (windowX, windowW, windowBottomY) => {
+    let step = 0;
+    const seedOffsets = [45, 90, 135, 180, 225, 270];
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(windowX, 0, windowW, windowBottomY);
+    ctx.clip();
+
+    for (let bx = windowX - 10; bx < windowX + windowW + 40; bx += 40) {
+      const hOffset = seedOffsets[step % 6];
+      const bHeight = 70 + (hOffset * 0.4) % 90;
+      const bY = windowBottomY - bHeight;
+      ctx.fillRect(bx, bY, 32, bHeight);
+
+      if (!isDayMode) {
+        ctx.fillStyle = 'rgba(254, 240, 138, 0.75)';
+        let wIndex = 0;
+        for (let wy = bY + 10; wy < windowBottomY - 10; wy += 14) {
+          for (let wx = bx + 5; wx < bx + 28; wx += 12) {
+            const lightOn = cityWindows[(wIndex + step * 4) % cityWindows.length];
+            if (lightOn) {
+              ctx.fillRect(wx, wy, 4, 6);
+            }
+            wIndex++;
+          }
+        }
+        ctx.fillStyle = '#09070f';
+      }
+      step++;
+    }
+    ctx.restore();
+  };
+
+  drawSkyline(leftWindowX, wWidth, wY + wHeight);
+  drawSkyline(rightWindowX, wWidth, wY + wHeight);
+
+  // Cozy room walls
+  const wallColor = isDayMode ? '#ecd5c5' : '#141424';
+  ctx.fillStyle = wallColor;
+  ctx.fillRect(0, 0, width, wY);
+  ctx.fillRect(leftWindowX + wWidth, 0, rightWindowX - (leftWindowX + wWidth), height * 0.6);
+  ctx.fillRect(0, 0, leftWindowX, height * 0.6);
+  ctx.fillRect(rightWindowX + wWidth, 0, width - (rightWindowX + wWidth), height * 0.6);
+
+  // Floor & Desk
+  const deskY = height * 0.56;
+  const deskColor = isDayMode ? '#78350f' : '#231828';
+  ctx.fillStyle = deskColor;
+  ctx.fillRect(0, deskY, width, height - deskY);
+
+  // Desk Border Line
+  ctx.strokeStyle = isDayMode ? '#92400e' : '#3c243f';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, deskY);
+  ctx.lineTo(width, deskY);
+  ctx.stroke();
+
+  // Window Frame Outline
+  ctx.strokeStyle = isDayMode ? '#451a03' : '#0c0714';
+  ctx.lineWidth = 14;
+  ctx.strokeRect(leftWindowX, wY, wWidth, wHeight);
+  ctx.strokeRect(rightWindowX, wY, wWidth, wHeight);
+
+  // Center divider panes
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(leftWindowX + wWidth / 2, wY);
+  ctx.lineTo(leftWindowX + wWidth / 2, wY + wHeight);
+  ctx.moveTo(rightWindowX + wWidth / 2, wY);
+  ctx.lineTo(rightWindowX + wWidth / 2, wY + wHeight);
+  ctx.stroke();
+
+  // Window pane rain streaks
+  if (isRainActive) {
+    const drawWindowRainStreaks = (winX, winY, winW, winH) => {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1.5;
+      const count = 12;
+      for (let i = 0; i < count; i++) {
+        const offset = (winW / count) * i;
+        const streakX = winX + offset;
+        const timeFactor = (Date.now() * 0.0008 + i * 4.3) % 1;
+        const startY = winY + (winH * 0.1);
+        const currentY = startY + (winH * 0.8) * timeFactor;
+        
+        ctx.beginPath();
+        ctx.moveTo(streakX, currentY);
+        ctx.lineTo(streakX, currentY + 12);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.beginPath();
+        ctx.arc(streakX, currentY + 13, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    drawWindowRainStreaks(leftWindowX, wY, wWidth, wHeight);
+    drawWindowRainStreaks(rightWindowX, wY, wWidth, wHeight);
+  }
+
+  // Draw Desk Lamp (Left side)
+  const lampX = width * 0.22;
+  const lampY = deskY;
+  
+  const drawLamp = (x, y) => {
+    ctx.fillStyle = isDayMode ? '#475569' : '#0f172a';
+    ctx.fillRect(x - 20, y - 6, 40, 6);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = isDayMode ? '#475569' : '#0f172a';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 6);
+    ctx.quadraticCurveTo(x - 30, y - 75, x - 10, y - 110);
+    ctx.stroke();
+    ctx.fillStyle = isDayMode ? '#dc2626' : '#7f1d1d';
+    ctx.beginPath();
+    ctx.ellipse(x - 10, y - 110, 16, 10, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  drawLamp(lampX, lampY);
+
+  // Draw Monitor Screen in Center
+  const monitorX = width / 2;
+  const monitorY = deskY - 10;
+  
+  const drawMonitor = (x, y) => {
+    const bezelW = 160;
+    const bezelH = 95;
+    const bezelX = x - bezelW / 2;
+    const bezelY = y - bezelH - 12;
+
+    ctx.fillStyle = isDayMode ? '#334155' : '#0f172a';
+    ctx.fillRect(x - 8, y - 12, 16, 12);
+    ctx.fillRect(x - 24, y - 3, 48, 3);
+    ctx.fillRect(bezelX, bezelY, bezelW, bezelH);
+    ctx.fillStyle = isDayMode ? '#0f172a' : '#020205';
+    ctx.fillRect(bezelX + 6, bezelY + 6, bezelW - 12, bezelH - 12);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bezelX + 8, bezelY + 8, bezelW - 16, bezelH - 16);
+    ctx.clip();
+
+    const numLines = 6;
+    const spacing = 12;
+    const now = Date.now();
+    const drift = (now * 0.015) % spacing;
+
+    ctx.lineWidth = 3;
+    for (let i = 0; i <= numLines; i++) {
+      const lineY = (bezelY + 14 + i * spacing) - drift;
+      const lineLength = 20 + ((i * 123 + Math.floor(now / 500)) % 60);
+      const indent = (i % 3 === 0) ? 14 : 6;
+      const colors = ['#22c55e', '#a855f7', '#06b6d4', '#eab308'];
+      ctx.strokeStyle = colors[i % colors.length];
+      
+      ctx.beginPath();
+      ctx.moveTo(bezelX + 8 + indent, lineY);
+      ctx.lineTo(bezelX + 8 + indent + lineLength, lineY);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+  drawMonitor(monitorX, monitorY);
+
+  // Draw Books stack
+  const booksX = width * 0.72;
+  const booksY = deskY;
+  
+  const drawBooksStack = (x, y) => {
+    const bookH = 10;
+    const colors = ['#dc2626', '#3b82f6', '#10b981', '#f59e0b'];
+    ctx.fillStyle = isDayMode ? colors[1] : '#1e3a8a';
+    ctx.fillRect(x - 25, y - bookH, 50, bookH);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x - 22, y - bookH + 2, 6, bookH - 4);
+
+    ctx.fillStyle = isDayMode ? colors[3] : '#78350f';
+    ctx.fillRect(x - 21, y - bookH * 2, 42, bookH);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x - 18, y - bookH * 2 + 2, 6, bookH - 4);
+
+    ctx.save();
+    ctx.translate(x, y - bookH * 2);
+    ctx.rotate(-0.15);
+    ctx.fillStyle = isDayMode ? colors[2] : '#065f46';
+    ctx.fillRect(-18, -bookH, 36, bookH);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-15, -bookH + 2, 6, bookH - 4);
+    ctx.restore();
+  };
+  drawBooksStack(booksX, booksY);
+
+  // Draw Coffee Mug & Steam (Right side)
+  const mugX = width * 0.62;
+  const mugY = deskY - 2;
+  
+  const drawCoffeeMug = (x, y) => {
+    const h = 18;
+    const w = 14;
+    const mugX = x - w / 2;
+    const mugY = y - h;
+
+    ctx.strokeStyle = isDayMode ? '#ea580c' : '#7c2d12';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(mugX - 2, mugY + h/2, 4, -Math.PI/2, Math.PI/2);
+    ctx.stroke();
+
+    ctx.fillStyle = isDayMode ? '#ea580c' : '#7c2d12';
+    ctx.fillRect(mugX, mugY, w, h);
+    ctx.fillRect(mugX - 1, mugY, w + 2, 2);
+
+    if (Math.random() < 0.05 && steamParticles.length < 8) {
+      steamParticles.push({
+        x: x + (Math.random() * 4 - 2),
+        y: mugY - 4,
+        vy: -Math.random() * 0.4 - 0.2,
+        opacity: 0.7,
+        oscSpeed: Math.random() * 0.05 + 0.02,
+        oscPhase: Math.random() * Math.PI
       });
     }
-  }
-  
-  chillhopStars.forEach(s => {
-    s.opacity += s.speed;
-    if (s.opacity > 1 || s.opacity < 0.15) {
-      s.speed *= -1;
+
+    ctx.lineWidth = 1.2;
+    for (let i = steamParticles.length - 1; i >= 0; i--) {
+      const p = steamParticles[i];
+      p.y += p.vy;
+      p.opacity -= 0.007;
+      p.oscPhase += p.oscSpeed;
+
+      if (p.opacity <= 0) {
+        steamParticles.splice(i, 1);
+        continue;
+      }
+
+      const waveX = p.x + Math.sin(p.oscPhase) * 3;
+      ctx.strokeStyle = `rgba(230, 230, 255, ${p.opacity})`;
+      ctx.beginPath();
+      ctx.moveTo(waveX, p.y);
+      ctx.lineTo(waveX, p.y - 4);
+      ctx.stroke();
     }
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(251, 207, 232, ${s.opacity * 0.45})`; 
-    ctx.fill();
-  });
+  };
+  drawCoffeeMug(mugX, mugY);
+
+  // Overlay Dark Night Shadow
+  if (!isDayMode) {
+    ctx.fillStyle = 'rgba(6, 4, 16, 0.58)';
+    ctx.fillRect(0, 0, width, height);
+
+    const drawLampGlowCone = (lx, ly) => {
+      const lampHeadX = lx - 10;
+      const lampHeadY = ly - 110;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(lampHeadX, lampHeadY);
+      ctx.lineTo(lampHeadX - 100, ly + 100);
+      ctx.lineTo(lampHeadX + 120, ly + 100);
+      ctx.closePath();
+      
+      const lightGrad = ctx.createRadialGradient(
+        lampHeadX, lampHeadY, 5, 
+        lampHeadX, lampHeadY + 110, 160
+      );
+      lightGrad.addColorStop(0, 'rgba(253, 224, 71, 0.4)');
+      lightGrad.addColorStop(0.3, 'rgba(253, 224, 71, 0.15)');
+      lightGrad.addColorStop(1, 'rgba(253, 224, 71, 0)');
+      
+      ctx.globalCompositeOperation = 'screen';
+      ctx.fillStyle = lightGrad;
+      ctx.fill();
+      ctx.restore();
+    };
+    drawLampGlowCone(lampX, lampY);
+
+    const screenGrad = ctx.createRadialGradient(monitorX, monitorY - 80, 20, monitorX, monitorY - 80, 150);
+    screenGrad.addColorStop(0, 'rgba(56, 189, 248, 0.08)');
+    screenGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = screenGrad;
+    ctx.fillRect(monitorX - 160, monitorY - 170, 320, 200);
+  }
 }
 
-// Retrowave sunset scroll grid
+// Retrowave sunset scroll grid with neon scanline sun and starfield in the background
 function drawRetrowaveArt(ctx, width, height) {
+  // 1. Draw Starfield
+  chillhopStars.forEach(s => {
+    s.opacity += s.speed;
+    if (s.opacity > 1 || s.opacity < 0.15) s.speed *= -1;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity * 0.7})`; 
+    ctx.fill();
+  });
+
   const horizon = height * 0.65;
   const vanishingX = width / 2;
   const vanishingY = horizon;
+  
+  // 2. Draw Retro Sun
+  const sunRadius = Math.min(width, height) * 0.16;
+  const drawRetrowaveSun = (x, y, radius) => {
+    ctx.save();
+    const glow = ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius * 1.4);
+    glow.addColorStop(0, 'rgba(255, 0, 127, 0.35)');
+    glow.addColorStop(1, 'rgba(255, 0, 127, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 1.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x, y - 5, radius, 0, Math.PI * 2);
+    ctx.clip();
+
+    const sunGrad = ctx.createLinearGradient(x, y - radius, x, y);
+    sunGrad.addColorStop(0, '#ff007f'); 
+    sunGrad.addColorStop(0.5, '#ff5e00'); 
+    sunGrad.addColorStop(1, '#ffbb00'); 
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath();
+    ctx.arc(x, y - 5, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#0d051c'; 
+    const baseHeight = 5;
+    for (let sy = y - radius; sy < y; sy += 12) {
+      const progress = (sy - (y - radius)) / radius;
+      if (progress > 0.2) {
+        const cutHeight = baseHeight * (progress * 1.8);
+        ctx.fillRect(x - radius - 20, sy, radius * 2 + 40, cutHeight);
+      }
+    }
+    ctx.restore();
+  };
+  drawRetrowaveSun(width / 2, horizon, sunRadius);
   
   // 3D perspective lines
   ctx.strokeStyle = 'rgba(255, 0, 127, 0.4)';
@@ -523,35 +957,137 @@ function drawRetrowaveArt(ctx, width, height) {
   }
 }
 
-// Deep Space Starfield
+// Deep Space Starfield with Drifting Nebulas, Planets and Shooting Stars
 function drawAmbientArt(ctx, width, height) {
-  if (ambientNebula.length === 0) {
-    for (let i = 0; i < 70; i++) {
-      ambientNebula.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        size: Math.random() * 1.8 + 0.4,
-        speedX: Math.random() * 0.1 - 0.05,
-        speedY: Math.random() * 0.08 + 0.02,
-        opacity: Math.random() * 0.8 + 0.2
-      });
-    }
-  }
+  // 1. Deep Space Solid Background
+  ctx.fillStyle = '#010105';
+  ctx.fillRect(0, 0, width, height);
+
+  // 2. Overlapping, drifting Nebulous Dust clouds
+  const now = Date.now() * 0.0002;
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
   
-  ambientNebula.forEach(s => {
-    s.x += s.speedX * (isPlaying ? 1.0 : 0.3);
-    s.y += s.speedY * (isPlaying ? 1.0 : 0.3);
+  nebulas.forEach((neb, idx) => {
+    const pulseRadius = neb.targetR + Math.sin(now + idx * 2) * 35;
+    const driftX = neb.x + Math.sin(now * 0.5 + idx) * 40;
+    const driftY = neb.y + Math.cos(now * 0.5 - idx) * 30;
+
+    const radial = ctx.createRadialGradient(
+      driftX, driftY, pulseRadius * 0.08,
+      driftX, driftY, pulseRadius
+    );
+    radial.addColorStop(0, neb.color.replace('ALPHA', '0.12'));
+    radial.addColorStop(0.5, neb.color.replace('ALPHA', '0.04'));
+    radial.addColorStop(1, neb.color.replace('ALPHA', '0'));
     
-    if (s.y > height) {
-      s.y = -5;
-      s.x = Math.random() * width;
-    }
-    
+    ctx.fillStyle = radial;
     ctx.beginPath();
-    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(56, 189, 248, ${s.opacity * 0.6})`;
+    ctx.arc(driftX, driftY, pulseRadius, 0, Math.PI * 2);
     ctx.fill();
   });
+  ctx.restore();
+
+  // 3. Twinkling Stars
+  chillhopStars.forEach(s => {
+    s.opacity += s.speed;
+    if (s.opacity > 1.0 || s.opacity < 0.1) {
+      s.speed *= -1;
+    }
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity * 0.85})`;
+    ctx.fill();
+  });
+
+  // 4. Planets
+  planets.forEach(p => {
+    p.x += p.speedX * (isPlaying ? 1.0 : 0.3);
+    p.y += p.speedY * (isPlaying ? 1.0 : 0.3);
+
+    if (p.x - p.r > width) {
+      p.x = -p.r * 1.5;
+    }
+
+    if (p.hasRing) {
+      ctx.save();
+      ctx.strokeStyle = p.ringColor;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, p.r * 1.8, p.r * 0.35, -0.22, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    const sphereShadow = ctx.createRadialGradient(
+      p.x - p.r * 0.3, p.y - p.r * 0.3, p.r * 0.2,
+      p.x, p.y, p.r
+    );
+    sphereShadow.addColorStop(0, 'rgba(255,255,255,0.15)');
+    sphereShadow.addColorStop(0.5, 'rgba(0,0,0,0)');
+    sphereShadow.addColorStop(1, 'rgba(0,0,0,0.85)');
+    ctx.fillStyle = sphereShadow;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (p.hasRing) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(p.x - p.r * 2.2, p.y - 2, p.r * 4.4, p.r * 2);
+      ctx.clip();
+
+      ctx.strokeStyle = p.ringColor;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, p.r * 1.8, p.r * 0.35, -0.22, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  });
+
+  // 5. Shooting stars
+  if (Math.random() < 0.004 && shootingStars.length < 3) {
+    shootingStars.push({
+      x: Math.random() * width * 0.8,
+      y: Math.random() * height * 0.4,
+      dx: Math.random() * 8 + 6,
+      dy: Math.random() * 4 + 3,
+      length: Math.random() * 80 + 50,
+      opacity: 1.0,
+      width: Math.random() * 2 + 1
+    });
+  }
+
+  ctx.save();
+  shootingStars.forEach((s, idx) => {
+    s.x += s.dx * (isPlaying ? 1.0 : 0.3);
+    s.y += s.dy * (isPlaying ? 1.0 : 0.3);
+    s.opacity -= 0.025;
+
+    if (s.opacity <= 0) {
+      shootingStars.splice(idx, 1);
+      return;
+    }
+
+    const headGrad = ctx.createLinearGradient(s.x, s.y, s.x - s.length, s.y - (s.length * s.dy / s.dx));
+    headGrad.addColorStop(0, `rgba(255, 255, 255, ${s.opacity})`);
+    headGrad.addColorStop(0.3, `rgba(56, 189, 248, ${s.opacity * 0.6})`);
+    headGrad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+
+    ctx.strokeStyle = headGrad;
+    ctx.lineWidth = s.width;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x - s.length, s.y - (s.length * s.dy / s.dx));
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 
 // ── RAIN VIDEO OVERLAY ──
@@ -683,6 +1219,9 @@ function initKeyboardShortcuts() {
       } else if (key === 'f') {
         const btn = document.getElementById('btn-toggle-fire');
         if (btn) btn.click();
+      } else if (key === 'd') {
+        const btn = document.getElementById('btn-toggle-daynight');
+        if (btn && activeStation === 'chillhop') btn.click();
       } else if (key === '1') {
         switchStation('chillhop');
       } else if (key === '2') {
@@ -788,6 +1327,33 @@ function initSettings() {
   const savedFireVol = localStorage.getItem('lofi_volume_fire');
   const savedFireState = localStorage.getItem('lofi_fire_active');
   const savedZenState = localStorage.getItem('lofi_zen_mode');
+  const savedDayMode = localStorage.getItem('lofi_day_mode');
+  
+  if (savedDayMode === 'true') {
+    isDayMode = true;
+    const btn = document.getElementById('btn-toggle-daynight');
+    if (btn) {
+      btn.classList.add('active');
+      const title = document.getElementById('text-daynight-title');
+      const desc = document.getElementById('text-daynight-desc');
+      const icon = document.getElementById('icon-daynight');
+      if (title) title.textContent = "Day Mode";
+      if (desc) desc.textContent = "Switch to night mode";
+      if (icon) icon.textContent = "☀️";
+    }
+  } else {
+    isDayMode = false;
+    const btn = document.getElementById('btn-toggle-daynight');
+    if (btn) {
+      btn.classList.remove('active');
+      const title = document.getElementById('text-daynight-title');
+      const desc = document.getElementById('text-daynight-desc');
+      const icon = document.getElementById('icon-daynight');
+      if (title) title.textContent = "Night Mode";
+      if (desc) desc.textContent = "Switch to day mode";
+      if (icon) icon.textContent = "🌙";
+    }
+  }
   
   if (savedRadioVol !== null) {
     radioVolume = parseInt(savedRadioVol);
@@ -919,6 +1485,25 @@ window.addEventListener("DOMContentLoaded", () => {
   if (btnToggleZen) {
     btnToggleZen.addEventListener('click', () => {
       setZenMode(!isZenMode);
+    });
+  }
+
+  // ── DAY/NIGHT EVENT HANDLERS ──
+  const btnToggleDaynight = document.getElementById('btn-toggle-daynight');
+  if (btnToggleDaynight) {
+    btnToggleDaynight.addEventListener('click', () => {
+      isDayMode = !isDayMode;
+      btnToggleDaynight.classList.toggle('active', isDayMode);
+      
+      const title = document.getElementById('text-daynight-title');
+      const desc = document.getElementById('text-daynight-desc');
+      const icon = document.getElementById('icon-daynight');
+      
+      if (title) title.textContent = isDayMode ? "Day Mode" : "Night Mode";
+      if (desc) desc.textContent = isDayMode ? "Switch to night mode" : "Switch to day mode";
+      if (icon) icon.textContent = isDayMode ? "☀️" : "🌙";
+      
+      localStorage.setItem('lofi_day_mode', isDayMode);
     });
   }
   
