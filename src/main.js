@@ -3,7 +3,7 @@ const STATIONS = {
   chillhop: {
     name: "Chillhop Café",
     genre: "Lofi Beats & Hip Hop",
-    url: "https://chill.radioca.st/stream",
+    url: "https://usa9.fastcast4u.com/proxy/jamz?mp=/1",
     theme: "chillhop",
     accent: "#fbcfe8"
   },
@@ -17,7 +17,7 @@ const STATIONS = {
   ambient: {
     name: "Ambient Nebula",
     genre: "Deep Space Soundscapes",
-    url: "https://stream.nightride.fm/ambient.mp3",
+    url: "https://radio.stereoscenic.com/asp-h",
     theme: "ambient",
     accent: "#38bdf8"
   }
