@@ -3,7 +3,7 @@ const STATIONS = {
   chillhop: {
     name: "Chillhop Café",
     genre: "Lofi Beats & Hip Hop",
-    url: "https://stream.lofi.re/live",
+    url: "https://chill.radioca.st/stream",
     theme: "chillhop",
     accent: "#fbcfe8"
   },
