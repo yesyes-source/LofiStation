@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LofiStation</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="main.js" defer></script>
+</head>
+<body>
+  <!-- Drag Bar for transparent titlebar window dragging -->
+  <div class="drag-bar" data-tauri-drag-region></div>
+
+  <!-- Background Art Container (changes based on active station) -->
+  <div class="bg-art-container" id="bg-art-container">
+    
+    <!-- Canvas for stars, neon grid, or nebula depending on station -->
+    <canvas id="art-canvas"></canvas>
+    
+    <!-- Retrowave specific sunset element -->
+    <div class="neon-sunset" id="neon-sunset" style="display: none;">
+      <div class="sun-glow"></div>
+      <div class="sun"></div>
+    </div>
+    
+    <!-- Cozy Lofi Room window glow -->
+    <div class="cozy-window-glow" id="cozy-window-glow" style="display: none;"></div>
+
+    <!-- Rain effect canvas (rendered on top of background art) -->
+    <canvas id="rain-canvas"></canvas>
+
+    <!-- Retro CRT TV filter (active for Retrowave Station) -->
+    <div class="crt-overlay" id="crt-overlay" style="display: none;"></div>
+  </div>
+
+  <!-- Main App Layout Container -->
+  <div class="app-container">
+    
+    <!-- Left Panel: Navigation & Station Selector -->
+    <aside class="sidebar">
+      <div class="app-header">
+        <span class="logo">LofiStation</span>
+        <span class="sub-logo">chill radio & cozy rain</span>
+      </div>
+
+      <div class="section-title">Radio Stations</div>
+      <div class="stations-list">
+        <!-- Station 1: Chillhop -->
+        <button class="station-card active" data-station="chillhop">
+          <div class="station-icon chillhop-icon">☕</div>
+          <div class="station-details">
+            <span class="station-name">Chillhop Café</span>
+            <span class="station-genre">Lofi Beats & Hip Hop</span>
+          </div>
+        </button>
+
+        <!-- Station 2: Retrowave -->
+        <button class="station-card" data-station="retrowave">
+          <div class="station-icon retrowave-icon">🌌</div>
+          <div class="station-details">
+            <span class="station-name">Retrowave Sunset</span>
+            <span class="station-genre">Synthwave & Outrun</span>
+          </div>
+        </button>
+
+        <!-- Station 3: Ambient -->
+        <button class="station-card" data-station="ambient">
+          <div class="station-icon ambient-icon">🪐</div>
+          <div class="station-details">
+            <span class="station-name">Ambient Nebula</span>
+            <span class="station-genre">Deep Space Soundscapes</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Sleep Timer Control -->
+      <div class="timer-section">
+        <span class="section-title">Sleep Timer</span>
+        <div class="timer-buttons">
+          <button class="timer-btn active" data-time="0">Off</button>
+          <button class="timer-btn" data-time="15">15m</button>
+          <button class="timer-btn" data-time="30">30m</button>
+          <button class="timer-btn" data-time="45">45m</button>
+          <button class="timer-btn" data-time="60">60m</button>
+        </div>
+        <span id="timer-status" class="timer-status"></span>
+      </div>
+    </aside>
+
+    <!-- Right Panel: Audio controls & Visualizer -->
+    <main class="player-panel">
+      <!-- Top Section showing currently playing info -->
+      <div class="now-playing">
+        <span class="status-label">Now Playing</span>
+        <h1 class="now-playing-title" id="now-playing-title">Chillhop Café</h1>
+        <span class="now-playing-subtitle" id="now-playing-status">Connecting to live stream...</span>
+      </div>
+
+      <!-- Graphic visualizer waves container -->
+      <div class="visualizer-wrapper">
+        <canvas id="visualizer-canvas"></canvas>
+      </div>
+
+      <!-- Bottom Audio Mixers & Controls -->
+      <div class="audio-mixers-container">
+        
+        <!-- Radio Stream Volume Control -->
+        <div class="mixer-row">
+          <div class="mixer-label">
+            <button class="audio-btn" id="btn-mute-radio" title="Mute Radio">
+              <svg class="audio-svg-icon" id="svg-mute-radio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+            </button>
+            <span>Volume Radio</span>
+          </div>
+          <input type="range" class="mixer-slider" id="slider-volume-radio" min="0" max="100" value="70" />
+        </div>
+
+        <!-- Rain Layer Volume / Toggle Control -->
+        <div class="mixer-row">
+          <div class="mixer-label">
+            <button class="audio-btn" id="btn-toggle-rain" title="Toggle Rain Sound">
+              <!-- Rain cloud SVG -->
+              <svg class="audio-svg-icon" id="svg-rain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"></path>
+                <line x1="8" y1="20" x2="8" y2="22"></line>
+                <line x1="12" y1="20" x2="12" y2="22"></line>
+                <line x1="16" y1="20" x2="16" y2="22"></line>
+              </svg>
+            </button>
+            <span>Volume Pioggia</span>
+          </div>
+          <input type="range" class="mixer-slider" id="slider-volume-rain" min="0" max="100" value="40" disabled />
+        </div>
+
+      </div>
+
+      <!-- Play / Pause primary floating control -->
+      <div class="main-playback-controls">
+        <button class="play-btn paused" id="btn-play-pause" title="Play / Pause">
+          <!-- Play icon (will toggle to pause via JS) -->
+          <svg class="play-svg-icon" id="svg-play" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+        </button>
+      </div>
+
+    </main>
+
+  </div>
+</body>
+</html>
