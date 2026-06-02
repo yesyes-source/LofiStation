@@ -28,17 +28,25 @@ let isPlaying = false;
 let radioVolume = 70;
 let rainVolume = 40;
 let isRainActive = false;
+let fireVolume = 40;
+let isFireActive = false;
 
 // HTML5 Audio Element for Radio Stream
 const radioAudio = new Audio();
 radioAudio.crossOrigin = "anonymous";
 
-// ── PROCEDURAL RAIN SOUNDS (WEB AUDIO API) ──
+// ── PROCEDURAL RAIN & FIREPLACE SOUNDS (WEB AUDIO API) ──
 let audioCtx = null;
 let rainSource = null;
 let rainGain = null;
 let rainFilter = null;
 let rainLfo = null;
+
+let fireSource = null;
+let fireGain = null;
+let fireFilter = null;
+let crackleBuffer = null;
+let fireLfo = null;
 
 function initRainAudio() {
   if (audioCtx) return;
@@ -110,6 +118,134 @@ function stopRain() {
   document.getElementById('btn-toggle-rain').classList.remove('active');
   document.getElementById('slider-volume-rain').disabled = true;
   updateRainVolumeNode();
+}
+
+// ── PROCEDURAL FIREPLACE SOUNDS ENGINE ──
+function initFireAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  
+  if (fireSource) return;
+  
+  // 1. Cozy Fire Rumble (Low rumble via pink noise filtering)
+  const bufferSize = audioCtx.sampleRate * 2.0;
+  const rumbleBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const outputData = rumbleBuffer.getChannelData(0);
+  let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+  for (let i = 0; i < bufferSize; i++) {
+    const white = Math.random() * 2 - 1;
+    // Pink noise filter approximation
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.96900 * b2 + white * 0.1538520;
+    b3 = 0.86650 * b3 + white * 0.3104856;
+    b4 = 0.55000 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.0168980;
+    const pink = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+    b6 = white * 0.115926;
+    outputData[i] = pink * 0.07; 
+  }
+  
+  fireSource = audioCtx.createBufferSource();
+  fireSource.buffer = rumbleBuffer;
+  fireSource.loop = true;
+  
+  fireFilter = audioCtx.createBiquadFilter();
+  fireFilter.type = 'lowpass';
+  fireFilter.frequency.setValueAtTime(110, audioCtx.currentTime);
+  fireFilter.Q.setValueAtTime(1.0, audioCtx.currentTime);
+  
+  fireGain = audioCtx.createGain();
+  updateFireVolumeNode();
+  
+  fireSource.connect(fireFilter);
+  fireFilter.connect(fireGain);
+  fireGain.connect(audioCtx.destination);
+  
+  fireSource.start(0);
+  
+  // 2. Synthesize Crackle Sound Buffer (a short pop/snap)
+  const crackleLength = audioCtx.sampleRate * 0.04;
+  crackleBuffer = audioCtx.createBuffer(1, crackleLength, audioCtx.sampleRate);
+  const crackleData = crackleBuffer.getChannelData(0);
+  for (let i = 0; i < crackleLength; i++) {
+    const t = i / crackleLength;
+    crackleData[i] = (Math.random() * 2 - 1) * Math.exp(-t * 22);
+  }
+  
+  playCrackle();
+  
+  // Slow LFO to modulate fire rumble (simulates flickering wood/flames rising and falling)
+  fireLfo = setInterval(() => {
+    if (audioCtx.state === 'running' && isFireActive) {
+      const targetFreq = 95 + Math.random() * 40;
+      fireFilter.frequency.exponentialRampToValueAtTime(targetFreq, audioCtx.currentTime + 1.5);
+    }
+  }, 1800);
+}
+
+function playCrackle() {
+  if (!isFireActive || !audioCtx || audioCtx.state === 'suspended' || !crackleBuffer) {
+    setTimeout(playCrackle, 300);
+    return;
+  }
+  
+  const source = audioCtx.createBufferSource();
+  source.buffer = crackleBuffer;
+  source.playbackRate.value = 0.6 + Math.random() * 0.8;
+  
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'highpass';
+  filter.frequency.setValueAtTime(1200 + Math.random() * 1800, audioCtx.currentTime);
+  
+  const gainNode = audioCtx.createGain();
+  const baseVol = (fireVolume / 100) * 0.15;
+  const snapVol = baseVol * (0.3 + Math.random() * 0.85);
+  gainNode.gain.setValueAtTime(snapVol, audioCtx.currentTime);
+  
+  source.connect(filter);
+  filter.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  
+  source.start(0);
+  
+  const nextTime = 70 + Math.random() * 550;
+  setTimeout(playCrackle, nextTime);
+}
+
+function updateFireVolumeNode() {
+  if (fireGain && audioCtx) {
+    const targetVolume = isFireActive ? (fireVolume / 100) * 0.35 : 0;
+    fireGain.gain.linearRampToValueAtTime(targetVolume, audioCtx.currentTime + 0.15);
+  }
+}
+
+function startFire() {
+  isFireActive = true;
+  const btn = document.getElementById('btn-toggle-fire');
+  if (btn) btn.classList.add('active');
+  const slider = document.getElementById('slider-volume-fire');
+  if (slider) slider.disabled = false;
+  
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  initFireAudio();
+  
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  updateFireVolumeNode();
+}
+
+function stopFire() {
+  isFireActive = false;
+  const btn = document.getElementById('btn-toggle-fire');
+  if (btn) btn.classList.remove('active');
+  const slider = document.getElementById('slider-volume-fire');
+  if (slider) slider.disabled = true;
+  updateFireVolumeNode();
 }
 
 // ── PLAYBACK CONTROLS ──
@@ -209,6 +345,12 @@ let ambientNebula = [];
 let rainDrops = [];
 let gridOffset = 0;
 
+// Interactive canvas particles & grid warp speed state
+let clickParticles = [];
+let targetGridSpeed = 1.0;
+let currentGridSpeed = 1.0;
+let isMouseDownOnCanvas = false;
+
 function initCanvasElements() {
   artCanvas = document.getElementById('art-canvas');
   artCtx = artCanvas.getContext('2d');
@@ -252,6 +394,38 @@ function resizeCanvases() {
   }
 }
 
+function spawnClickParticles(x, y, color) {
+  for (let i = 0; i < 8; i++) {
+    clickParticles.push({
+      x: x,
+      y: y,
+      vx: (Math.random() * 2 - 1) * 1.5,
+      vy: -Math.random() * 2 - 0.5,
+      size: Math.random() * 3 + 1.5,
+      alpha: 1,
+      color: color,
+      decay: Math.random() * 0.015 + 0.01
+    });
+  }
+}
+
+function updateAndDrawClickParticles(ctx) {
+  for (let i = clickParticles.length - 1; i >= 0; i--) {
+    const p = clickParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.alpha -= p.decay;
+    if (p.alpha <= 0) {
+      clickParticles.splice(i, 1);
+      continue;
+    }
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = p.color.replace('ALPHA', p.alpha);
+    ctx.fill();
+  }
+}
+
 function animationLoop() {
   // 1. Draw Active Station Background Artwork
   artCtx.clearRect(0, 0, artCanvas.width, artCanvas.height);
@@ -262,6 +436,9 @@ function animationLoop() {
   } else if (activeStation === 'ambient') {
     drawAmbientArt(artCtx, artCanvas.width, artCanvas.height);
   }
+  
+  // Update and draw interactive click particles
+  updateAndDrawClickParticles(artCtx);
   
   // 2. Draw Rain Particle Overlay
   rainCtx.clearRect(0, 0, rainCanvas.width, rainCanvas.height);
@@ -328,9 +505,10 @@ function drawRetrowaveArt(ctx, width, height) {
   }
   
   // Infinite grid horizontal lines
-  gridOffset += isPlaying ? 0.7 : 0.15; // slow down if paused
+  currentGridSpeed += (targetGridSpeed - currentGridSpeed) * 0.06;
+  gridOffset += (isPlaying ? 0.7 : 0.15) * currentGridSpeed;
   if (gridOffset >= 30) {
-    gridOffset = 0;
+    gridOffset = gridOffset % 30;
   }
   
   for (let y = 0; y < 14; y++) {
@@ -454,6 +632,88 @@ function drawVisualizer(ctx, width, height) {
   ctx.stroke();
 }
 
+// ── ZEN MODE (AUTO-HIDE INTERACTIVE UI) ──
+let isZenMode = false;
+let zenTimeout = null;
+
+function setZenMode(active) {
+  isZenMode = active;
+  const btn = document.getElementById('btn-toggle-zen');
+  if (btn) {
+    btn.classList.toggle('active', active);
+  }
+  
+  if (active) {
+    triggerZenCountdown();
+  } else {
+    clearTimeout(zenTimeout);
+    document.body.classList.remove('zen-active');
+  }
+  localStorage.setItem('lofi_zen_mode', active);
+}
+
+function triggerZenCountdown() {
+  clearTimeout(zenTimeout);
+  if (!isZenMode) return;
+  
+  document.body.classList.remove('zen-active');
+  zenTimeout = setTimeout(() => {
+    if (isZenMode) {
+      document.body.classList.add('zen-active');
+    }
+  }, 3500);
+}
+
+// ── KEYBOARD SHORTCUTS ──
+function initKeyboardShortcuts() {
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' && e.target.type === 'range') return;
+    
+    if (e.code === 'Space') {
+      e.preventDefault();
+      const btn = document.getElementById('btn-play-pause');
+      if (btn) btn.click();
+    } else {
+      const key = e.key.toLowerCase();
+      if (key === 'z') {
+        setZenMode(!isZenMode);
+      } else if (key === 'r') {
+        const btn = document.getElementById('btn-toggle-rain');
+        if (btn) btn.click();
+      } else if (key === 'f') {
+        const btn = document.getElementById('btn-toggle-fire');
+        if (btn) btn.click();
+      } else if (key === '1') {
+        switchStation('chillhop');
+      } else if (key === '2') {
+        switchStation('retrowave');
+      } else if (key === '3') {
+        switchStation('ambient');
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        adjustRadioVolume(5);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        adjustRadioVolume(-5);
+      }
+    }
+  });
+}
+
+function adjustRadioVolume(amount) {
+  const slider = document.getElementById('slider-volume-radio');
+  if (slider) {
+    let vol = parseInt(slider.value) + amount;
+    vol = Math.max(0, Math.min(100, vol));
+    slider.value = vol;
+    radioVolume = vol;
+    radioAudio.volume = vol / 100;
+    const btnMute = document.getElementById('btn-mute-radio');
+    if (btnMute) btnMute.classList.toggle('active', radioVolume === 0);
+    localStorage.setItem('lofi_volume_radio', radioVolume);
+  }
+}
+
 // ── SLEEP TIMER TIMER SYSTEM ──
 let sleepTimer = null;
 let sleepTimeRemaining = 0; // minutes
@@ -506,6 +766,7 @@ function handleSleepTimerEnd() {
       clearInterval(fadeInterval);
       pauseRadio();
       stopRain();
+      stopFire();
       
       // Attempt to close Tauri window
       try {
@@ -524,6 +785,9 @@ function initSettings() {
   const savedRadioVol = localStorage.getItem('lofi_volume_radio');
   const savedRainVol = localStorage.getItem('lofi_volume_rain');
   const savedRainState = localStorage.getItem('lofi_rain_active');
+  const savedFireVol = localStorage.getItem('lofi_volume_fire');
+  const savedFireState = localStorage.getItem('lofi_fire_active');
+  const savedZenState = localStorage.getItem('lofi_zen_mode');
   
   if (savedRadioVol !== null) {
     radioVolume = parseInt(savedRadioVol);
@@ -538,6 +802,20 @@ function initSettings() {
   
   if (savedRainState === 'true') {
     startRain();
+  }
+
+  if (savedFireVol !== null) {
+    fireVolume = parseInt(savedFireVol);
+    const slider = document.getElementById('slider-volume-fire');
+    if (slider) slider.value = fireVolume;
+  }
+  
+  if (savedFireState === 'true') {
+    startFire();
+  }
+  
+  if (savedZenState === 'true') {
+    setZenMode(true);
   }
   
   if (savedStation) {
@@ -610,6 +888,86 @@ window.addEventListener("DOMContentLoaded", () => {
     rainVolume = parseInt(e.target.value);
     updateRainVolumeNode();
     localStorage.setItem('lofi_volume_rain', rainVolume);
+  });
+
+  // ── FIREPLACE EVENT HANDLERS ──
+  const btnToggleFire = document.getElementById('btn-toggle-fire');
+  const sliderFire = document.getElementById('slider-volume-fire');
+  
+  if (btnToggleFire) {
+    btnToggleFire.addEventListener('click', () => {
+      if (isFireActive) {
+        stopFire();
+        localStorage.setItem('lofi_fire_active', 'false');
+      } else {
+        startFire();
+        localStorage.setItem('lofi_fire_active', 'true');
+      }
+    });
+  }
+  
+  if (sliderFire) {
+    sliderFire.addEventListener('input', (e) => {
+      fireVolume = parseInt(e.target.value);
+      updateFireVolumeNode();
+      localStorage.setItem('lofi_volume_fire', fireVolume);
+    });
+  }
+  
+  // ── ZEN MODE EVENT HANDLERS ──
+  const btnToggleZen = document.getElementById('btn-toggle-zen');
+  if (btnToggleZen) {
+    btnToggleZen.addEventListener('click', () => {
+      setZenMode(!isZenMode);
+    });
+  }
+  
+  // Double-click on background art container to toggle Zen Mode
+  const bgArt = document.getElementById('bg-art-container');
+  if (bgArt) {
+    bgArt.addEventListener('dblclick', (e) => {
+      if (e.target.closest('button') || e.target.closest('input')) return;
+      setZenMode(!isZenMode);
+    });
+  }
+  
+  // Reset Zen Mode countdown on mouse move
+  window.addEventListener('mousemove', () => {
+    if (isZenMode) {
+      triggerZenCountdown();
+    }
+  });
+  
+  // ── KEYBOARD SHORTCUTS ──
+  initKeyboardShortcuts();
+  
+  // ── INTERACTIVE CANVAS PARTICLES & GRID ACCELERATION ──
+  window.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.sidebar') || e.target.closest('.player-panel')) return;
+    
+    isMouseDownOnCanvas = true;
+    
+    const colorHex = STATIONS[activeStation].accent;
+    const r = parseInt(colorHex.slice(1, 3), 16);
+    const g = parseInt(colorHex.slice(3, 5), 16);
+    const b = parseInt(colorHex.slice(5, 7), 16);
+    const rgbaColor = `rgba(${r}, ${g}, ${b}, ALPHA)`;
+    spawnClickParticles(e.clientX, e.clientY, rgbaColor);
+    
+    if (activeStation === 'retrowave') {
+      targetGridSpeed = 4.5;
+    }
+  });
+  
+  window.addEventListener('mouseup', () => {
+    isMouseDownOnCanvas = false;
+    targetGridSpeed = 1.0;
+  });
+  
+  window.addEventListener('mousemove', (e) => {
+    if (isMouseDownOnCanvas && activeStation === 'retrowave') {
+      targetGridSpeed = 6.0;
+    }
   });
 
   // Station card clicks

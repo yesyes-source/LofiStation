@@ -559,3 +559,20 @@ body {
 .play-btn.playing:hover {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), var(--glow-current);
 }
+
+/* ── ZEN MODE transitions and state ── */
+.sidebar, .player-panel {
+  transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1), transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+body.zen-active .sidebar {
+  opacity: 0;
+  transform: translateX(-30px);
+  pointer-events: none;
+}
+
+body.zen-active .player-panel {
+  opacity: 0;
+  transform: translateY(30px);
+  pointer-events: none;
+}

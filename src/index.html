@@ -70,6 +70,16 @@
             <span class="station-name">Ambient Nebula</span>
             <span class="station-genre">Deep Space Soundscapes</span>
           </div>
+      </div>
+
+      <!-- Zen Mode Trigger -->
+      <div style="margin: 16px 0 10px 0;">
+        <button class="station-card" id="btn-toggle-zen" style="padding: 10px 14px; border-color: rgba(255,255,255,0.04); background: rgba(255, 255, 255, 0.015);">
+          <div class="station-icon" style="width: 32px; height: 32px; font-size: 16px; border-radius: 8px;">👁️</div>
+          <div class="station-details">
+            <span class="station-name" style="font-size: 12px;">Zen Mode</span>
+            <span class="station-genre" style="font-size: 9px;">Double-click or press Z to toggle</span>
+          </div>
         </button>
       </div>
 
@@ -113,7 +123,7 @@
                 <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
               </svg>
             </button>
-            <span>Volume Radio</span>
+            <span>Radio Volume</span>
           </div>
           <input type="range" class="mixer-slider" id="slider-volume-radio" min="0" max="100" value="70" />
         </div>
@@ -130,9 +140,23 @@
                 <line x1="16" y1="20" x2="16" y2="22"></line>
               </svg>
             </button>
-            <span>Volume Pioggia</span>
+            <span>Rain Sound</span>
           </div>
           <input type="range" class="mixer-slider" id="slider-volume-rain" min="0" max="100" value="40" disabled />
+        </div>
+
+        <!-- Fireplace Layer Volume / Toggle Control -->
+        <div class="mixer-row">
+          <div class="mixer-label">
+            <button class="audio-btn" id="btn-toggle-fire" title="Toggle Fireplace Sound">
+              <!-- Fire SVG -->
+              <svg class="audio-svg-icon" id="svg-fire" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
+              </svg>
+            </button>
+            <span>Fireplace Sound</span>
+          </div>
+          <input type="range" class="mixer-slider" id="slider-volume-fire" min="0" max="100" value="40" disabled />
         </div>
 
       </div>
